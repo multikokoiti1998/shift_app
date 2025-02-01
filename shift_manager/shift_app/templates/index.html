@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト管理</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h2 {
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: center;
+        }
+        th {
+            background-color: #007BFF;
+            color: white;
+        }
+        button {
+            padding: 5px 10px;
+            background-color: red;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: darkred;
+        }
+        form {
+            margin-bottom: 20px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>シフト作成月</h2>
+    <form method="POST" action="{% url 'create_shift_schedule' %}">
+        {% csrf_token %}
+        <label>シフト作成月 (ex: 2025.3): <input type="text" name="year_month" required></label>
+        <label>祝日 (ex: 2025-03-20,2025-03-21): <input type="text" name="holiday_input"></label>
+        <button type="submit">シフトを作成</button>
+    </form>
+    <h2>技師登録</h2>
+
+    <form method="POST" action="{% url 'add_tech' %}">
+        {% csrf_token %}
+        <label>技師名: <input type="text" name="new_tech" required></label>
+        <label>
+            カテーテル可:
+            <select name="catheter_ability">
+                <option value="1">可</option>
+                <option value="0">不可</option>
+            </select>
+        </label>
+        <button type="submit">追加</button>
+    </form>
+
+    <h2>技師リスト</h2>
+    <table>
+        <tr>
+            <th>技師名</th>
+            <th>カテーテル可否</th>
+            <th>削除</th>
+        </tr>
+        {% for tech in all_techs %}
+        <tr>
+            <td>{{ tech }}</td>
+            <td>{% if tech in catheter_team %} 可 {% else %} 不可 {% endif %}</td>
+            <td><a href="{% url 'delete_tech' tech %}"><button>削除</button></a></td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>A/B班登録</h2>
+    <form method="POST" action="{% url 'assign_ab_team' %}">
+        {% csrf_token %}
+        <h3>A班</h3>
+        {% for tech in all_techs %}
+            <label><input type="checkbox" name="a_team" value="{{ tech }}" {% if tech in a_team %}checked{% endif %}> {{ tech }}</label><br>
+        {% endfor %}
+
+        <h3>B班</h3>
+        {% for tech in all_techs %}
+            <label><input type="checkbox" name="b_team" value="{{ tech }}" {% if tech in b_team %}checked{% endif %}> {{ tech }}</label><br>
+        {% endfor %}
+
+        <button type="submit">A/B班を保存</button>
+    </form>
+
+    <h2>シフト表</h2>
+    <table>
+        <tr>
+            <th>日付</th>
+            <th>カテーテル可当直</th>
+            <th>カテーテル不可当直</th>
+            <th>日勤</th>
+        </tr>
+        {% for shift in shift_data %}
+        <tr>
+            <td>{{ shift.日付 }}</td>
+            <td>{{ shift.カテーテル可当直 }}</td>
+            <td>{{ shift.カテーテル不可当直 }}</td>
+            <td>{{ shift.カテーテル不可当直_祝日}}</td>
+        </tr>
+        {% endfor %}
+    </table>
+
+</body>
+</html>
