@@ -252,9 +252,9 @@ def create_shift_schedule(request):
         if weekday == 6:
             alternating_week = not alternating_week
             
-            df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
-            df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
-            
-            return redirect("index")#これのせいで6日までしか作られない。ループが終わってしまう
-        
+    df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
+    df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
+    
+    return redirect("index")#これのせいで6日までしか作られない。ループが終わってしまう
+
    
