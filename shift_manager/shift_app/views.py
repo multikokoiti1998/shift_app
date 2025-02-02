@@ -144,6 +144,7 @@ def load_techs():
     all_techs, catheter_team, non_catheter_team, a_team, b_team = [], [], [], [], []
     duty_count = {}
     last_duty = {}
+     
 
     if os.path.exists(TECHS_FILE):
         df = pd.read_csv(TECHS_FILE, encoding='utf-8-sig')
@@ -191,6 +192,7 @@ def create_shift_schedule(request):
         holidays = set(holiday_input.split(",")) if holiday_input else set()
         
         load_techs()
+        base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
         last_day = first_day.replace(day=calendar.monthrange(year, month)[1])
         date_list = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
@@ -200,7 +202,8 @@ def create_shift_schedule(request):
     for date in date_list:
         weekday = date.weekday()
         if weekday==5:
-            if get_team_for_saturday(base_saturday, weekday)=="B班":
+            target_date = date.strftime("%Y-%m-%d")
+            if get_team_for_saturday(base_saturday, target_date)=="B班":
                 available_team = b_team 
                 non_available_team = a_team
             else:
