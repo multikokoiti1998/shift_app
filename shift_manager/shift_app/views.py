@@ -199,8 +199,14 @@ def create_shift_schedule(request):
         
     for date in date_list:
         weekday = date.weekday()
-        available_team = a_team if alternating_week else b_team
-        non_available_team = b_team if alternating_week else a_team
+        if weekday==5:
+            if get_team_for_saturday(base_saturday, weekday)=="B班":
+                available_team = b_team 
+                non_available_team = a_team
+            else:
+                available_team = a_team 
+                non_available_team = b_team
+            
 
         # 候補者の選定（明け休みや連続勤務を防ぐ）
         valid_catheter_candidates = [
@@ -249,5 +255,6 @@ def create_shift_schedule(request):
             df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
             df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
             
-            return redirect("index")
+            return redirect("index")#これのせいで6日までしか作られない。ループが終わってしまう
+        
    
