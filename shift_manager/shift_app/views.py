@@ -129,6 +129,7 @@ import pandas as pd
 import os
 import calendar
 from datetime import datetime, timedelta
+import random
 
 TECHS_FILE = 'static/techs.csv'
 AB_TEAMS_FILE = 'static/ab_teams.csv'
@@ -179,6 +180,21 @@ def get_team_for_saturday(base_saturday, target_date):
     
     weeks_difference = (target_date - base_saturday).days // 7
     return "B班" if weeks_difference % 2 == 0 else "A班"
+
+# 当直者の決定（均等性 + ランダム性を考慮）
+def select_duty(candidates, duty_count):
+    if not candidates:
+        return ""  # 候補がいない場合は空文字
+
+    # 最小の勤務回数を取得
+    min_duty = min(duty_count[m] for m in candidates)
+
+    # 最小の勤務回数のメンバーを抽出
+    min_duty_candidates = [m for m in candidates if duty_count[m] == min_duty]
+
+    # ランダムに 1 人選ぶ
+    return random.choice(min_duty_candidates)
+
 def create_shift_schedule(request):
     """シフトを作成し、制約を満たすように調整"""
     if request.method == "POST":
@@ -201,15 +217,19 @@ def create_shift_schedule(request):
         
     for date in date_list:
         weekday = date.weekday()
-        if weekday==5:
-            target_date = date.strftime("%Y-%m-%d")
-            if get_team_for_saturday(base_saturday, target_date)=="B班":
-                available_team = b_team 
-                non_available_team = a_team
-            else:
-                available_team = a_team 
-                non_available_team = b_team
-            
+        target_date = date.strftime("%Y-%m-%d")
+        is_b_team = get_team_for_saturday(base_saturday, target_date) == "B班"
+
+        match weekday:
+            case 4:  # 金曜日
+                available_team = b_team if not is_b_team else a_team
+            case 5:  # 土曜日
+                available_team = b_team if is_b_team else a_team
+            case 6:  # 日曜日
+                available_team = b_team if not is_b_team else a_team
+            case _:  # 月～木
+                available_team = a_team + b_team  # 全員対象
+                
 
         # 候補者の選定（明け休みや連続勤務を防ぐ）
         valid_catheter_candidates = [
@@ -224,8 +244,8 @@ def create_shift_schedule(request):
         ]
 
         # 当直者の決定（均等性を考慮）
-        duty_catheter = min(valid_catheter_candidates, key=lambda x: duty_count[x], default="")
-        duty_non_catheter = min(valid_non_catheter_candidates, key=lambda x: duty_count[x], default="")
+        duty_catheter = select_duty(valid_catheter_candidates, duty_count)
+        duty_non_catheter = select_duty(valid_non_catheter_candidates, duty_count)
 
         # 当直回数をカウントし、勤務日を記録
         if duty_catheter:
