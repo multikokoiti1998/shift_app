@@ -4,49 +4,7 @@ import pandas as pd
 import os
 import calendar
 from datetime import datetime, timedelta
-from django.shortcuts import render, redirect
-import pandas as pd
-import os
-import calendar
-from datetime import datetime, timedelta
 import random
-
-# 技師データを保存するファイル
-TECHS_FILE = 'static/techs.csv'
-AB_TEAMS_FILE = 'static/ab_teams.csv'
-
-# 技師リストの初期化
-all_techs = []
-catheter_team = []
-non_catheter_team = []
-a_team = []
-b_team = []
-duty_count = {}
-last_duty = {}
-
-# 制約条件
-MAX_DUTY_CATHETER = 4
-MAX_DUTY_NON_CATHETER = 3
-
-def load_techs():
-    global all_techs, catheter_team, non_catheter_team, a_team, b_team, duty_count, last_duty
-    if os.path.exists(TECHS_FILE):
-        df = pd.read_csv(TECHS_FILE, encoding='utf-8-sig')
-        all_techs = df['技師名'].tolist()
-        catheter_team = df[df['カテーテル可'] == 1]['技師名'].tolist()
-        non_catheter_team = df[df['カテーテル可'] == 0]['技師名'].tolist()
-    else:
-        df = pd.DataFrame({'技師名': all_techs, 'カテーテル可': [0] * len(all_techs)})
-        df.to_csv(TECHS_FILE, index=False, encoding='utf-8-sig')
-    
-    if os.path.exists(AB_TEAMS_FILE):
-        df = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
-        a_team = df[df['班'] == 'A']['技師名'].tolist()
-        b_team = df[df['班'] == 'B']['技師名'].tolist()
-    
-    duty_count = {name: 0 for name in all_techs}
-    last_duty = {name: None for name in all_techs}
-
 
 TECHS_FILE = 'static/techs.csv'
 AB_TEAMS_FILE = 'static/ab_teams.csv'
@@ -164,15 +122,16 @@ def assign_ab_team(request):
 
     return redirect("index")
 
-
+""""
 def load_holidays(year, month):
-    """指定された年月の祝日リストを取得"""
+    指定された年月の祝日リストを取得
     holidays = set()
     if os.path.exists(HOLIDAYS_FILE):
         df = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
         df['日付'] = pd.to_datetime(df['日付'], format='%Y-%m-%d')
         holidays = set(df[df['日付'].dt.year == year][df['日付'].dt.month == month]['日付'])
     return holidays
+"""
     #土曜日、出勤班を特定
 def get_team_for_saturday(base_saturday, target_date):
     """
@@ -208,9 +167,14 @@ def create_shift_schedule(request):
             year, month = map(int, year_month_str.split("."))
         except ValueError:
             return JsonResponse({"error": "入力形式が正しくありません。YYYY.MM の形式で入力してください。"}, status=400)
-        
-        holidays = set(holiday_input.split(",")) if holiday_input else set()
-        
+        holidays = set()
+
+        if holiday_input:  # 入力がある場合のみ処理
+            for date_str in holiday_input.split("."):  # ドットで分割
+                try:
+                    holidays.add(datetime.strptime(date_str.strip(), "%Y-%m-%d").date())  # `date` 型に変換
+                except ValueError:
+                    print(f"無効な日付フォーマット: {date_str}")  # エラーログ
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
@@ -250,7 +214,15 @@ def create_shift_schedule(request):
         # 当直者の決定（均等性を考慮）
         duty_catheter = select_duty(valid_catheter_candidates, duty_count)
         duty_non_catheter = select_duty(valid_non_catheter_candidates, duty_count)
-
+        
+              # 日勤者の選定（祝日 or 日曜日）
+        duty_day_shift = ""
+        if date.date() in holidays or weekday == 6:
+            valid_day_candidates = [
+                m for m in valid_non_catheter_candidates if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
+            ]
+            if valid_day_candidates:
+                duty_day_shift = select_duty(valid_day_candidates, duty_sunday)
         # 当直回数をカウントし、勤務日を記録
         if duty_catheter:
             duty_count[duty_catheter] += 1
@@ -258,15 +230,9 @@ def create_shift_schedule(request):
         if duty_non_catheter:
             duty_count[duty_non_catheter] += 1
             last_duty[duty_non_catheter] = date
-
-        # 日勤者の選定（祝日 or 日曜日）
-        duty_day_shift = ""
-        if date.date()in holidays or weekday == 6:
-            valid_day_candidates = [
-                m for m in available_team if duty_sunday[m] < MAX_DUTY_SUNDAY
-            ]
-            duty_day_shift = select_duty(valid_non_catheter_candidates, duty_sunday)
-
+        # **日勤回数をカウント**
+        if duty_day_shift:
+            duty_sunday[duty_day_shift] += 1
 
         # シフトデータを記録
         schedule.append([
