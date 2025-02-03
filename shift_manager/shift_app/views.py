@@ -172,7 +172,7 @@ def create_shift_schedule(request):
         if holiday_input:  # 入力がある場合のみ処理
             for date_str in holiday_input.split("."):  # ドットで分割
                 try:
-                    holidays.add(datetime.strptime(date_str.strip(), "%Y-%m-%d").date())  # `date` 型に変換
+                    holidays.add(datetime.strptime(date_str.strip(), "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
         load_techs()
@@ -219,7 +219,10 @@ def create_shift_schedule(request):
         duty_day_shift = ""
         if date.date() in holidays or weekday == 6:
             valid_day_candidates = [
-                m for m in valid_non_catheter_candidates if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
+                m for m in valid_non_catheter_candidates 
+                if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
+                and m != duty_catheter  # その日のカテーテル当直者ではない
+                and m != duty_non_catheter  # その日の非カテーテル当直者ではない
             ]
             if valid_day_candidates:
                 duty_day_shift = select_duty(valid_day_candidates, duty_sunday)
