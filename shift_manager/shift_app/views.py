@@ -4,6 +4,12 @@ import pandas as pd
 import os
 import calendar
 from datetime import datetime, timedelta
+from django.shortcuts import render, redirect
+import pandas as pd
+import os
+import calendar
+from datetime import datetime, timedelta
+import random
 
 # 技師データを保存するファイル
 TECHS_FILE = 'static/techs.csv'
@@ -40,6 +46,40 @@ def load_techs():
     
     duty_count = {name: 0 for name in all_techs}
     last_duty = {name: None for name in all_techs}
+
+
+TECHS_FILE = 'static/techs.csv'
+AB_TEAMS_FILE = 'static/ab_teams.csv'
+HOLIDAYS_FILE = 'static/holidays.csv'
+SHIFT_FILE = 'static/shift_schedule.csv'
+
+MAX_DUTY_CATHETER = 4
+MAX_DUTY_NON_CATHETER = 3
+MAX_DUTY_SUNDAY = 1
+
+def load_techs():
+    """技師データをロード"""
+    global all_techs, catheter_team, non_catheter_team, a_team, b_team, duty_count, last_duty,duty_sunday
+    all_techs, catheter_team, non_catheter_team, a_team, b_team = [], [], [], [], []
+    duty_count = {}
+    last_duty = {}
+    duty_sunday={}
+     
+
+    if os.path.exists(TECHS_FILE):
+        df = pd.read_csv(TECHS_FILE, encoding='utf-8-sig')
+        all_techs = df['技師名'].tolist()
+        catheter_team = df[df['カテーテル可'] == 1]['技師名'].tolist()
+        non_catheter_team = df[df['カテーテル可'] == 0]['技師名'].tolist()
+
+    if os.path.exists(AB_TEAMS_FILE):
+        df = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
+        a_team = df[df['班'] == 'A']['技師名'].tolist()
+        b_team = df[df['班'] == 'B']['技師名'].tolist()
+
+    duty_count = {name: 0 for name in all_techs}
+    last_duty = {name: None for name in all_techs}
+    duty_sunday={name: 0 for name in all_techs}
 
 def index(request):
     """技師リストとシフトデータを表示するビュー"""
@@ -124,42 +164,6 @@ def assign_ab_team(request):
 
     return redirect("index")
 
-from django.shortcuts import render, redirect
-import pandas as pd
-import os
-import calendar
-from datetime import datetime, timedelta
-import random
-
-TECHS_FILE = 'static/techs.csv'
-AB_TEAMS_FILE = 'static/ab_teams.csv'
-HOLIDAYS_FILE = 'static/holidays.csv'
-SHIFT_FILE = 'static/shift_schedule.csv'
-
-MAX_DUTY_CATHETER = 4
-MAX_DUTY_NON_CATHETER = 3
-
-def load_techs():
-    """技師データをロード"""
-    global all_techs, catheter_team, non_catheter_team, a_team, b_team, duty_count, last_duty
-    all_techs, catheter_team, non_catheter_team, a_team, b_team = [], [], [], [], []
-    duty_count = {}
-    last_duty = {}
-     
-
-    if os.path.exists(TECHS_FILE):
-        df = pd.read_csv(TECHS_FILE, encoding='utf-8-sig')
-        all_techs = df['技師名'].tolist()
-        catheter_team = df[df['カテーテル可'] == 1]['技師名'].tolist()
-        non_catheter_team = df[df['カテーテル可'] == 0]['技師名'].tolist()
-
-    if os.path.exists(AB_TEAMS_FILE):
-        df = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
-        a_team = df[df['班'] == 'A']['技師名'].tolist()
-        b_team = df[df['班'] == 'B']['技師名'].tolist()
-
-    duty_count = {name: 0 for name in all_techs}
-    last_duty = {name: None for name in all_techs}
 
 def load_holidays(year, month):
     """指定された年月の祝日リストを取得"""
@@ -213,7 +217,7 @@ def create_shift_schedule(request):
         last_day = first_day.replace(day=calendar.monthrange(year, month)[1])
         date_list = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
         schedule = []
-        alternating_week = (first_day.weekday() // 7) % 2 == 1  # 偶数週A, 奇数週B
+        
         
     for date in date_list:
         weekday = date.weekday()
@@ -257,11 +261,12 @@ def create_shift_schedule(request):
 
         # 日勤者の選定（祝日 or 日曜日）
         duty_day_shift = ""
-        if str(date.date()) in holidays or weekday == 6:
+        if date.date()in holidays or weekday == 6:
             valid_day_candidates = [
-                m for m in available_team if duty_count[m] < MAX_DUTY_NON_CATHETER
+                m for m in available_team if duty_sunday[m] < MAX_DUTY_SUNDAY
             ]
-            duty_day_shift = min(valid_day_candidates, key=lambda x: duty_count[x], default="")
+            duty_day_shift = select_duty(valid_non_catheter_candidates, duty_sunday)
+
 
         # シフトデータを記録
         schedule.append([
@@ -270,14 +275,10 @@ def create_shift_schedule(request):
         duty_non_catheter if duty_non_catheter else "",  # nanを防ぐ
         duty_day_shift if duty_day_shift else ""  # nanを防ぐ
     ])
-        # AB班の交代
 
-        if weekday == 6:
-            alternating_week = not alternating_week
             
     df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
     df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
     
-    return redirect("index")#これのせいで6日までしか作られない。ループが終わってしまう
-
+    return redirect("index")
    
