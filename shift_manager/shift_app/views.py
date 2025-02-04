@@ -163,6 +163,7 @@ def create_shift_schedule(request):
     if request.method == "POST":
         year_month_str = request.POST.get("year_month")
         holiday_input = request.POST.get("holiday_input", "")
+        print(holiday_input)
         try:
             year, month = map(int, year_month_str.split("."))
         except ValueError:
@@ -170,11 +171,12 @@ def create_shift_schedule(request):
         holidays = set()
 
         if holiday_input:  # 入力がある場合のみ処理
-            for date_str in holiday_input.split("."):  # ドットで分割
+            for date_str in holiday_input.split(","):  # ドットで分割
                 try:
                     holidays.add(datetime.strptime(date_str.strip(), "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
+        print(holidays)
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
@@ -218,6 +220,7 @@ def create_shift_schedule(request):
               # 日勤者の選定（祝日 or 日曜日）
         duty_day_shift = ""
         if date.date() in holidays or weekday == 6:
+            print(holidays)
             valid_day_candidates = [
                 m for m in valid_non_catheter_candidates 
                 if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
