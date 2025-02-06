@@ -12,7 +12,7 @@ HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
 
 MAX_DUTY_CATHETER = 4
-MAX_DUTY_NON_CATHETER = 3
+MAX_DUTY_NON_CATHETER = 2
 MAX_DUTY_SUNDAY = 1
 
 def load_techs():
@@ -205,20 +205,21 @@ def create_shift_schedule(request):
         valid_catheter_candidates = [
             m for m in available_team if m in catheter_team
             and duty_count[m] < MAX_DUTY_CATHETER
-            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 2)
+            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 5)
         ]
         valid_non_catheter_candidates = [
             m for m in available_team if m in non_catheter_team
             and duty_count[m] < MAX_DUTY_NON_CATHETER
-            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 2)
+            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 5)
         ]
 
         # 当直者の決定（均等性を考慮）
         duty_catheter = select_duty(valid_catheter_candidates, duty_count)
+
         duty_non_catheter = select_duty(valid_non_catheter_candidates, duty_count)
         
               # 日勤者の選定（祝日 or 日曜日）
-        duty_day_shift = ""
+        duty_day_catheter = ""
         if date.date() in holidays or weekday == 6:
             print(holidays)
             valid_day_candidates = [
@@ -228,7 +229,7 @@ def create_shift_schedule(request):
                 and m != duty_non_catheter  # その日の非カテーテル当直者ではない
             ]
             if valid_day_candidates:
-                duty_day_shift = select_duty(valid_day_candidates, duty_sunday)
+                duty_day_catheter = select_duty(valid_day_candidates, duty_sunday)
         # 当直回数をカウントし、勤務日を記録
         if duty_catheter:
             duty_count[duty_catheter] += 1
@@ -237,15 +238,17 @@ def create_shift_schedule(request):
             duty_count[duty_non_catheter] += 1
             last_duty[duty_non_catheter] = date
         # **日勤回数をカウント**
-        if duty_day_shift:
-            duty_sunday[duty_day_shift] += 1
+        if duty_day_catheter:
+            duty_sunday[duty_day_catheter] += 1
+            last_duty[duty_day_catheter]
+        print(last_duty)#要確認
 
         # シフトデータを記録
         schedule.append([
         date.strftime('%Y-%m-%d'),
         duty_catheter if duty_catheter else "",  # nanを防ぐ
         duty_non_catheter if duty_non_catheter else "",  # nanを防ぐ
-        duty_day_shift if duty_day_shift else ""  # nanを防ぐ
+        duty_day_catheter if duty_day_catheter else ""  # nanを防ぐ
     ])
 
             
