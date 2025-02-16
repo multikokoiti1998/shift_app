@@ -254,6 +254,13 @@ def create_shift_schedule(request):
             
     df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
     df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
-    
+
     return redirect("index")
-   
+
+
+def load_shift_schedule():
+    if os.path.exists(SHIFT_FILE):
+        df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
+        df_shift['日付'] = pd.to_datetime(df_shift['日付'])
+        return df_shift
+    return pd.DataFrame()
