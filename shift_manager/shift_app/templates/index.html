@@ -52,7 +52,7 @@
     <form method="POST" action="{% url 'create_shift_schedule' %}">
         {% csrf_token %}
         <label>シフト作成月 (ex: 2025.3): <input type="text" name="year_month" required></label>
-        <label>祝日 (ex: 2025-03-20,2025-03-21): <input type="text" name="holiday_input"></label>
+        <label>祝日 (ex: "2025-03-20","2025-03-21"): <input type="text" name="holiday_input"></label>
         <button type="submit">シフトを作成</button>
     </form>
     <h2>技師登録</h2>
