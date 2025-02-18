@@ -10,6 +10,8 @@ TECHS_FILE = 'static/techs.csv'
 AB_TEAMS_FILE = 'static/ab_teams.csv'
 HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
+attendance_file='shift_manager\static\attendance_data.csv'
+
 
 MAX_DUTY_CATHETER = 4
 MAX_DUTY_NON_CATHETER = 2
@@ -122,16 +124,7 @@ def assign_ab_team(request):
 
     return redirect("index")
 
-""""
-def load_holidays(year, month):
-    指定された年月の祝日リストを取得
-    holidays = set()
-    if os.path.exists(HOLIDAYS_FILE):
-        df = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
-        df['日付'] = pd.to_datetime(df['日付'], format='%Y-%m-%d')
-        holidays = set(df[df['日付'].dt.year == year][df['日付'].dt.month == month]['日付'])
-    return holidays
-"""
+
     #土曜日、出勤班を特定
 def get_team_for_saturday(base_saturday, target_date):
     """
@@ -163,11 +156,7 @@ def create_shift_schedule(request):
     if request.method == "POST":
         year_month_str = request.POST.get("year_month")
         holiday_input = request.POST.get("holiday_input", "")
-        print(holiday_input)
-        try:
-            year, month = map(int, year_month_str.split("."))
-        except ValueError:
-            return JsonResponse({"error": "入力形式が正しくありません。YYYY.MM の形式で入力してください。"}, status=400)
+        year, month = map(int, year_month_str.split("."))
         holidays = set()
 
         if holiday_input:  # 入力がある場合のみ処理
@@ -183,6 +172,11 @@ def create_shift_schedule(request):
         last_day = first_day.replace(day=calendar.monthrange(year, month)[1])
         date_list = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
         schedule = []
+
+        # 日付情報をセッションに保存（generate_attendance_report で利用するため）
+        request.session["shift_year"] = year
+        request.session["shift_month"] = month
+        request.session["holidays"] = [d.strftime('%Y-%m-%d') for d in holidays]
         
         
     for date in date_list:
@@ -257,10 +251,105 @@ def create_shift_schedule(request):
 
     return redirect("index")
 
-
 def load_shift_schedule():
     if os.path.exists(SHIFT_FILE):
         df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
         df_shift['日付'] = pd.to_datetime(df_shift['日付'])
         return df_shift
     return pd.DataFrame()
+
+def load_holidays():
+    """祝日データを読み込む"""
+    if os.path.exists(HOLIDAYS_FILE):
+        df_holidays = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
+        df_holidays['日付'] = pd.to_datetime(df_holidays['日付'])
+        return set(df_holidays['日付'].dt.date)
+    return set()
+
+def load_ab_teams():
+    """A/B班データを読み込む"""
+    if os.path.exists(AB_TEAMS_FILE):
+        df_teams = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
+        a_team = df_teams[df_teams["班"] == "A"]["技師名"].tolist()
+        b_team = df_teams[df_teams["班"] == "B"]["技師名"].tolist()
+        return a_team, b_team
+    return [], []
+
+def load_shift_schedule():
+    """当直・日勤データを読み込む"""
+    if os.path.exists(SHIFT_FILE):
+        df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
+        df_shift['日付'] = pd.to_datetime(df_shift['日付'])
+        return df_shift
+    return pd.DataFrame()
+
+def generate_attendance_report(request):
+    """ボタン押下で勤務表を生成"""
+    year = request.session.get("shift_year", 2024)
+    month = request.session.get("shift_month", 4)
+    holidays = set(datetime.strptime(d, "%Y-%m-%d").date() for d in request.session.get("holidays", []))
+
+    # 日付リストを生成
+    start_date = datetime(year, month, 1)
+    last_day = start_date.replace(day=calendar.monthrange(year, month)[1])
+    dates = [start_date + timedelta(days=i) for i in range((last_day - start_date).days + 1)]
+
+def get_team_for_saturday(base_saturday, target_date):
+    #土曜日の出勤班を決定
+    weeks_difference = (target_date - base_saturday).days // 7
+    return "B班" if weeks_difference % 2 == 0 else "A班"
+
+def generate_attendance_report(request):
+    """ボタン押下で勤務表を生成"""
+    start_date = datetime(2024, 4, 1)
+    end_date = datetime(2024, 4, 30)
+    dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+
+    holidays = load_holidays()
+    a_team, b_team = load_ab_teams()
+    shift_df = load_shift_schedule()
+    base_saturday = "2025-01-04"
+
+    output_data = []
+
+    for _, row in pd.read_csv(attendance_file).iterrows():
+        employee_id = row["社員ID"]
+        name = row["氏名"]
+
+        for date in dates:
+            weekday = date.weekday()
+            date_str = date.strftime('%Y-%m-%d')
+
+            # 勤務判定
+            if date.date() in holidays:
+                work_status = "休み"
+            elif weekday == 5:  # 土曜日
+                team_for_saturday = get_team_for_saturday(base_saturday, date)
+                work_status = "勤務" if (name in a_team and team_for_saturday == "A班") or (name in b_team and team_for_saturday == "B班") else "休み"
+            elif weekday == 6:  # 日曜日
+                work_status = "休み"
+            else:
+                work_status = "勤務"
+
+            # シフトデータを確認
+            duty_type = "なし"
+            shift_match = shift_df[shift_df["日付"] == date_str]
+
+            if not shift_match.empty:
+                if name in shift_match["カテーテル可当直"].values:
+                    duty_type = "当直"
+                elif name in shift_match["カテーテル不可当直"].values:
+                    duty_type = "当直"
+                elif name in shift_match["日勤"].values:
+                    duty_type = "日勤"
+
+            output_data.append([
+                employee_id, name, date_str, work_status, "なし", duty_type, "なし", "なし"
+            ])
+
+    output_df = pd.DataFrame(output_data, columns=["個人コード", "個人コード", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
+    
+    output_file_path = os.path.join("static", "formatted_attendance.csv")
+    output_df.to_csv(output_file_path, index=False, encoding='utf-8-sig')
+
+    return JsonResponse({"message": "勤務表を生成しました", "file_url": "/static/formatted_attendance.csv"})
