@@ -152,6 +152,13 @@ def select_duty(candidates, duty_count):
     # ランダムに 1 人選ぶ
     return random.choice(min_duty_candidates)
 
+def get_weekday(date_str):
+    # 文字列を `date` 型に変換
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    # 曜日を取得して返す
+    return date_obj.weekday()
+
+
 def create_shift_schedule(request):
     """シフトを作成し、制約を満たすように調整"""
     if request.method == "POST":
@@ -282,6 +289,17 @@ def generate_attendance_report(request):
     dates = [start_date + timedelta(days=i) for i in range((last_date - start_date).days + 1)]
     formatted_dates = [d.strftime("%Y-%m-%d") for d in dates]
     df_shift["日付"] = df_shift["日付"].dt.strftime('%Y-%m-%d')
+
+    #Time_proに出力するパラメーター
+    staff_code = ""  # 個人コード
+    name = ""  # 氏名
+    dates = []  # 処理日
+    calendar_type = "勤務"  # カレンダー
+    attendance_type = "なし"  # 勤怠区分
+    shift_type = "日勤"  # シフト区分
+    exception_start = "なし"  # 出勤例外
+    exception_end = "なし"  # 退勤例外
+
     #当直リスト
     Night_duty_shift_dict = {
     row["日付"]: [row["カテーテル可当直"], row["カテーテル不可当直"]]
@@ -297,7 +315,11 @@ def generate_attendance_report(request):
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
     staff_dict = list(zip(df_staff["職員番号"], df_staff["氏名"]))
     for id,name in staff_dict:#メンバー一人ずつ
-      for day in formatted_dates:#毎日一日ずつ
+      for day in formatted_dates:#毎日一日ずつdayはstr
+       #曜日判定を追加
+       get_weekday(day)
+       
+
        Night_duty_mem=Night_duty_shift_dict [day]
        Day_duty_mem=Day_duty_shift_dict [day]
        if name in Night_duty_mem:#夜勤か判定
