@@ -11,6 +11,7 @@ AB_TEAMS_FILE = 'static/ab_teams.csv'
 HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
 attendance_file='shift_manager\static\attendance_data.csv'
+all_staff='shift_manager\static\staff_all.xlsx'
 
 
 MAX_DUTY_CATHETER = 4
@@ -280,9 +281,29 @@ def generate_attendance_report(request):
     last_date = df_shift["日付"].max()
     dates = [start_date + timedelta(days=i) for i in range((last_date - start_date).days + 1)]
     formatted_dates = [d.strftime("%Y-%m-%d") for d in dates]
+    df_shift["日付"] = df_shift["日付"].dt.strftime('%Y-%m-%d')
+    #当直リスト
+    Night_duty_shift_dict = {
+    row["日付"]: [row["カテーテル可当直"], row["カテーテル不可当直"]]
+    for _, row in df_shift.iterrows()
+    }
+    #日勤リスト
+    Day_duty_shift_dict = {
+    row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
+    for _, row in df_shift.iterrows()
+    }
 
 
-    output_data = []
-     
+    df_staff = pd.read_excel(all_staff, engine="openpyxl")
+    staff_dict = list(zip(df_staff["職員番号"], df_staff["氏名"]))
+    for id,name in staff_dict:#メンバー一人ずつ
+      for day in formatted_dates:#毎日一日ずつ
+       Night_duty_mem=Night_duty_shift_dict [day]
+       Day_duty_mem=Day_duty_shift_dict [day]
+       if name in Night_duty_mem:#夜勤か判定
+         print()
+       if name in Day_duty_mem:#日勤か判定
+        print()
+    output_data=[]
     output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
     
