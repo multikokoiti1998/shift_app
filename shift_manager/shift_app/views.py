@@ -268,17 +268,13 @@ def load_ab_teams():
         return a_team, b_team
     return [], []
 
-
-def get_team_for_saturday(base_saturday, target_date):
-    #土曜日の出勤班を決定
-    weeks_difference = (target_date - base_saturday).days // 7
-    return "B班" if weeks_difference % 2 == 0 else "A班"
-
 def generate_attendance_report(request):
     """ボタン押下で勤務表を生成"""
     holidays = load_holidays()
     a_team, b_team = load_ab_teams()
     base_saturday = "2025-01-04"
+
+    #日程抽出
     df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
     df_shift["日付"] = pd.to_datetime(df_shift["日付"], errors="coerce")
     start_date = df_shift["日付"].min()
@@ -289,5 +285,5 @@ def generate_attendance_report(request):
 
     output_data = []
      
-    output_df = pd.DataFrame(output_data, columns=["個人コード", "個人コード", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
+    output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
     
