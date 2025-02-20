@@ -266,19 +266,10 @@ def load_holidays():
         return set(df_holidays['日付'].dt.date)
     return set()
 
-def load_ab_teams():
-    """A/B班データを読み込む"""
-    if os.path.exists(AB_TEAMS_FILE):
-        df_teams = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
-        a_team = df_teams[df_teams["班"] == "A"]["技師名"].tolist()
-        b_team = df_teams[df_teams["班"] == "B"]["技師名"].tolist()
-        return a_team, b_team
-    return [], []
-
 def generate_attendance_report(request):
     """ボタン押下で勤務表を生成"""
     holidays = load_holidays()
-    a_team, b_team = load_ab_teams()
+    df_teams = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
     base_saturday = "2025-01-04"
 
     #日程抽出
@@ -293,7 +284,7 @@ def generate_attendance_report(request):
     #Time_proに出力するパラメーター
     staff_code = ""  # 個人コード
     name = ""  # 氏名
-    dates = []  # 処理日
+    date = 0  # 処理日
     calendar_type = "勤務"  # カレンダー
     attendance_type = "なし"  # 勤怠区分
     shift_type = "日勤"  # シフト区分
@@ -315,17 +306,65 @@ def generate_attendance_report(request):
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
     staff_dict = list(zip(df_staff["職員番号"], df_staff["氏名"]))
     for id,name in staff_dict:#メンバー一人ずつ
+      staff_code = id # 個人コード
+      name = name  # 氏名
+      output_data=[]
       for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
-       get_weekday(day)
-       
-
-       Night_duty_mem=Night_duty_shift_dict [day]
-       Day_duty_mem=Day_duty_shift_dict [day]
-       if name in Night_duty_mem:#夜勤か判定
-         print()
-       if name in Day_duty_mem:#日勤か判定
-        print()
-    output_data=[]
+       weekday=get_weekday(day)#date型に変換
+       match weekday:
+            case 5:  # 土曜日
+                x=get_team_for_saturday(base_saturday, day)
+                attend_mem=df_teams[df_teams["班"] == "A"]["技師名"].tolist()
+                if calendar_type=="当直":
+                    calendar_type="明け"
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="当直"
+                    else:
+                        if name in attend_mem:
+                            calendar_type ="勤務"
+                        else:
+                            calendar_type ="指定"
+                        
+            case 6:  # 日曜日
+                if calendar_type=="当直":
+                    calendar_type="明け"
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="当直"
+                    elif name in Day_duty_shift_dict[day]:
+                        calendar_type="勤務"
+                    else :
+                        calendar_type="休み"
+            case  0 , 1:# 月火
+                if calendar_type=="当直":
+                    calendar_type="明け"
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="当直"
+                    elif calendar_type=="明け":
+                        calendar_type="休み"
+                    else :
+                        calendar_type="勤務"
+            
+            case 2,3,4:  # 水木金
+                 if calendar_type=="当直":
+                    calendar_type="明け"
+                 else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="当直"
+                    else :
+                        calendar_type="勤務"               
+                
+    for date in formatted_dates:
+         output_data.append([staff_code, name, date, calendar_type, attendance_type, shift_type, exception_start, exception_end])         
+    # DataFrame に変換
     output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
-    
+
+# Excel に保存（上書き）
+    output_df.to_excel("output.xlsx", index=False, encoding="utf-8-sig")
+
+
+
+       
