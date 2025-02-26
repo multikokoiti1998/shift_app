@@ -119,6 +119,11 @@
         </tr>
         {% endfor %}
     </table>
+    <h2>勤務表を生成</h2>
+    <form method="POST" action="{% url 'generate_attendance_report' %}">
+        {% csrf_token %}
+        <button type="submit">勤務表を生成</button>
+    </form>
 
 </body>
 </html>

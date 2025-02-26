@@ -5,17 +5,18 @@ import os
 import calendar
 from datetime import datetime, timedelta
 import random
+import openpyxl
 
 TECHS_FILE = 'static/techs.csv'
 AB_TEAMS_FILE = 'static/ab_teams.csv'
 HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
-attendance_file='shift_manager\static\attendance_data.csv'
-all_staff='shift_manager\static\staff_all.xlsx'
+attendance_file='static/attendance_data.csv'
+all_staff='static/staff_all.xlsx'
 
 
 MAX_DUTY_CATHETER = 4
-MAX_DUTY_NON_CATHETER = 2
+MAX_DUTY_NON_CATHETER = 3
 MAX_DUTY_SUNDAY = 1
 
 def load_techs():
@@ -271,6 +272,7 @@ def generate_attendance_report(request):
     holidays = load_holidays()
     df_teams = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
     base_saturday = "2025-01-04"
+    output_data=[]
 
     #日程抽出
     df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
@@ -306,13 +308,15 @@ def generate_attendance_report(request):
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
     staff_dict = list(zip(df_staff["職員番号"], df_staff["氏名"]))
     for id,name in staff_dict:#メンバー一人ずつ
-      staff_code = id # 個人コード
-      name = name  # 氏名
-      output_data=[]
-      for day in formatted_dates:#毎日一日ずつdayはstr
+       staff_code = id # 個人コード
+       name = name  # 氏名
+       prev_calendar_type = "勤務"
+       for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
-       weekday=get_weekday(day)#date型に変換
-       match weekday:
+        weekday=get_weekday(day)#date型に変換
+        if day in holidays:
+           weekday=6
+        match weekday:
             case 5:  # 土曜日
                 x=get_team_for_saturday(base_saturday, day)
                 attend_mem=df_teams[df_teams["班"] == "A"]["技師名"].tolist()
@@ -356,14 +360,15 @@ def generate_attendance_report(request):
                         calendar_type ="当直"
                     else :
                         calendar_type="勤務"               
-                
-    for date in formatted_dates:
-         output_data.append([staff_code, name, date, calendar_type, attendance_type, shift_type, exception_start, exception_end])         
-    # DataFrame に変換
-    output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
+        # ✅ 次の日の `prev_calendar_type` を更新
+        prev_calendar_type = calendar_type        
+        output_data.append([staff_code, name, date, calendar_type, attendance_type, shift_type, exception_start, exception_end])         
+        # DataFrame に変換
+        output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
 
 # Excel に保存（上書き）
-    output_df.to_excel("output.xlsx", index=False, encoding="utf-8-sig")
+    output_df.to_excel("output.xlsx", index=False)
+    return redirect("index")
 
 
 
