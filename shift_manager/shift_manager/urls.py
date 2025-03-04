@@ -27,5 +27,6 @@ urlpatterns = [
     path("add_tech/", views.add_tech, name="add_tech"),
     path("delete_tech/<str:tech_name>/", views.delete_tech, name="delete_tech"),
     path("assign_ab_team/", views.assign_ab_team, name="assign_ab_team"),
+    path('generate_attendance_report/', views.generate_attendance_report, name='generate_attendance_report'),
 ]
 

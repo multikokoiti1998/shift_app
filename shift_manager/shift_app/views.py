@@ -5,14 +5,18 @@ import os
 import calendar
 from datetime import datetime, timedelta
 import random
+import openpyxl
 
 TECHS_FILE = 'static/techs.csv'
 AB_TEAMS_FILE = 'static/ab_teams.csv'
 HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
+attendance_file='static/attendance_data.csv'
+all_staff='static/staff_all.xlsx'
+
 
 MAX_DUTY_CATHETER = 4
-MAX_DUTY_NON_CATHETER = 2
+MAX_DUTY_NON_CATHETER = 3
 MAX_DUTY_SUNDAY = 1
 
 def load_techs():
@@ -122,16 +126,7 @@ def assign_ab_team(request):
 
     return redirect("index")
 
-""""
-def load_holidays(year, month):
-    指定された年月の祝日リストを取得
-    holidays = set()
-    if os.path.exists(HOLIDAYS_FILE):
-        df = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
-        df['日付'] = pd.to_datetime(df['日付'], format='%Y-%m-%d')
-        holidays = set(df[df['日付'].dt.year == year][df['日付'].dt.month == month]['日付'])
-    return holidays
-"""
+
     #土曜日、出勤班を特定
 def get_team_for_saturday(base_saturday, target_date):
     """
@@ -158,31 +153,39 @@ def select_duty(candidates, duty_count):
     # ランダムに 1 人選ぶ
     return random.choice(min_duty_candidates)
 
+def get_weekday(date_str):
+    # 文字列を `date` 型に変換
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d").date()
+    # 曜日を取得して返す
+    return date_obj.weekday()
+
+
 def create_shift_schedule(request):
     """シフトを作成し、制約を満たすように調整"""
     if request.method == "POST":
         year_month_str = request.POST.get("year_month")
         holiday_input = request.POST.get("holiday_input", "")
-        print(holiday_input)
-        try:
-            year, month = map(int, year_month_str.split("."))
-        except ValueError:
-            return JsonResponse({"error": "入力形式が正しくありません。YYYY.MM の形式で入力してください。"}, status=400)
+        year, month = map(int, year_month_str.split("."))
         holidays = set()
-
         if holiday_input:  # 入力がある場合のみ処理
-            for date_str in holiday_input.split(","):  # ドットで分割
+            for date_str in holiday_input.split(","):  # カンマで分割
                 try:
-                    holidays.add(datetime.strptime(date_str.strip(), "%Y-%m-%d").date()) # `date` 型に変換
+                    cleaned_date = date_str.strip().strip('"')  
+                    holidays.add(datetime.strptime(cleaned_date , "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
-        print(holidays)
+        #print(holidays)
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
         last_day = first_day.replace(day=calendar.monthrange(year, month)[1])
         date_list = [first_day + timedelta(days=i) for i in range((last_day - first_day).days + 1)]
         schedule = []
+
+        # 日付情報をセッションに保存（generate_attendance_report で利用するため）
+        request.session["shift_year"] = year
+        request.session["shift_month"] = month
+        request.session["holidays"] = [d.strftime('%Y-%m-%d') for d in holidays]
         
         
     for date in date_list:
@@ -241,7 +244,6 @@ def create_shift_schedule(request):
         if duty_day_catheter:
             duty_sunday[duty_day_catheter] += 1
             last_duty[duty_day_catheter]
-        print(last_duty)#要確認
 
         # シフトデータを記録
         schedule.append([
@@ -254,6 +256,207 @@ def create_shift_schedule(request):
             
     df = pd.DataFrame(schedule, columns=['日付', 'カテーテル可当直', 'カテーテル不可当直', '日勤'])
     df.to_csv(os.path.join('static', 'shift_schedule.csv'), index=False, encoding='utf-8-sig')
-    
+
     return redirect("index")
-   
+
+def load_holidays():
+    """祝日データを読み込む"""
+    if os.path.exists(HOLIDAYS_FILE):
+        df_holidays = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
+        df_holidays['日付'] = pd.to_datetime(df_holidays['日付'])
+        return set(df_holidays['日付'].dt.date)
+    return set()
+
+def generate_attendance_report(request):
+    """ボタン押下で勤務表を生成"""
+    holidays = load_holidays()
+    df_teams = pd.read_csv(AB_TEAMS_FILE, encoding='utf-8-sig')
+    base_saturday = "2025-01-04"
+    output_data=[]
+
+    #日程抽出
+    df_shift = pd.read_csv(SHIFT_FILE, encoding='utf-8-sig')
+    df_shift["日付"] = pd.to_datetime(df_shift["日付"], errors="coerce")
+    start_date = df_shift["日付"].min()
+    last_date = df_shift["日付"].max()
+    dates = [start_date + timedelta(days=i) for i in range((last_date - start_date).days + 1)]
+    formatted_dates = [d.strftime("%Y-%m-%d") for d in dates]
+    df_shift["日付"] = df_shift["日付"].dt.strftime('%Y-%m-%d')
+
+    #Time_proに出力するパラメーター
+    staff_code = ""  # 個人コード
+    name = ""  # 氏名
+    date = 0  # 処理日
+    calendar_type = "勤務"  # カレンダー
+    attendance_type = "なし"  # 勤怠区分
+    shift_type = "日勤"  # シフト区分
+    exception_start = "なし"  # 出勤例外
+    exception_end = "なし"  # 退勤例外
+
+    #当直リスト
+    Night_duty_shift_dict = {
+    row["日付"]: [row["カテーテル可当直"], row["カテーテル不可当直"]]
+    for _, row in df_shift.iterrows()
+    }
+    #日勤リスト
+    Day_duty_shift_dict = {
+    row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
+    for _, row in df_shift.iterrows()
+    }
+    print(Night_duty_shift_dict)
+
+
+    df_staff = pd.read_excel(all_staff, engine="openpyxl")
+    staff_dict = list(zip(df_staff["職員番号"], df_staff["氏名"]))
+    for id,name in staff_dict:#メンバー一人ずつ
+       staff_code = id # 個人コード
+       name = name  # 氏名
+       prev_calendar_type = "勤務"
+       prev_shift_type="日勤"
+       for day in formatted_dates:#毎日一日ずつdayはstr
+       #曜日判定を追加
+        weekday=get_weekday(day)#date型に変換
+        if day in holidays:
+           weekday=6
+        match weekday:
+            case 5:  # 土曜日
+                #その日の出勤班決定
+                x=get_team_for_saturday(base_saturday, day)
+                if x=="B班":
+                    attend_mem=df_teams[df_teams["班"] == "B"]["技師名"].tolist()
+                else:
+                    attend_mem=df_teams[df_teams["班"] == "A"]["技師名"].tolist()
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    else:
+                        if name in attend_mem:
+                            calendar_type ="勤務"
+                            shift_type="半日"
+                            
+                        else:
+                            calendar_type ="指定"
+                            shift_type="日勤"
+                            
+                        
+            case 6:  # 日曜日
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    elif name in Day_duty_shift_dict[day]:
+                        calendar_type="勤務"
+                        shift_type="日勤"
+                        
+                    else :
+                        calendar_type="休日"
+                        shift_type="日勤"
+                        
+            case  0 :# 月
+                if prev_calendar_type=="勤務"and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    elif prev_shift_type=="明け":
+                        calendar_type="休日"
+                        shift_type="日勤"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"
+                      
+            case  1:# 火
+                if prev_calendar_type=="勤務"and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    elif prev_shift_type=="明け":
+                        calendar_type="休日"
+                        shift_type="日勤"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"
+                 
+            
+            case 2:  # 水
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                   
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"  
+                        
+            case 3:  # 木
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                       
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"  
+                       
+            case 4:  # 水木金
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                 
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"  
+                                 
+        # ✅ 次の日の `prev_calendar_type` を更新
+        prev_calendar_type = calendar_type
+        prev_shift_type=shift_type
+
+        date_str = day
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        formatted_date_slash = date_obj.strftime("%Y/%m/%d")
+        output_data.append([staff_code, name, formatted_date_slash , calendar_type, attendance_type, shift_type, exception_start, exception_end])         
+        # DataFrame に変換
+        output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
+
+# Excel に保存（上書き）
+    output_df.to_excel("output.xlsx", index=False)
+    return redirect("index")
+
+
+
+       
