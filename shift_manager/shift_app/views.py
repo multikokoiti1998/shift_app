@@ -174,7 +174,7 @@ def create_shift_schedule(request):
                     holidays.add(datetime.strptime(cleaned_date , "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
-        print(holidays)
+        #print(holidays)
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
@@ -303,6 +303,7 @@ def generate_attendance_report(request):
     row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
     for _, row in df_shift.iterrows()
     }
+    print(Night_duty_shift_dict)
 
 
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
@@ -315,68 +316,132 @@ def generate_attendance_report(request):
        for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
         weekday=get_weekday(day)#date型に変換
-        print(weekday)
         if day in holidays:
            weekday=6
         match weekday:
             case 5:  # 土曜日
+                #その日の出勤班決定
                 x=get_team_for_saturday(base_saturday, day)
-                attend_mem=df_teams[df_teams["班"] == "A"]["技師名"].tolist()
-                if prev_shift_type=="当直":
+                if x=="B班":
+                    attend_mem=df_teams[df_teams["班"] == "B"]["技師名"].tolist()
+                else:
+                    attend_mem=df_teams[df_teams["班"] == "A"]["技師名"].tolist()
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
                     calendar_type="勤務"
                     shift_type="明け"
+                
                 else:
                     if name in Night_duty_shift_dict[day]:
                         calendar_type ="勤務"
                         shift_type="当直"
+                        
                     else:
                         if name in attend_mem:
                             calendar_type ="勤務"
                             shift_type="半日"
+                            
                         else:
                             calendar_type ="指定"
-                            shift_type="指定"
+                            shift_type="日勤"
+                            
                         
             case 6:  # 日曜日
-                if prev_shift_type=="当直":
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
                     calendar_type="勤務"
                     shift_type="明け"
+                    
                 else:
                     if name in Night_duty_shift_dict[day]:
                         calendar_type ="勤務"
                         shift_type="当直"
+                        
                     elif name in Day_duty_shift_dict[day]:
                         calendar_type="勤務"
                         shift_type="日勤"
+                        
                     else :
                         calendar_type="休日"
                         shift_type="日勤"
-            case  0 , 1:# 月火
-                if prev_shift_type=="当直":
+                        
+            case  0 :# 月
+                if prev_calendar_type=="勤務"and prev_shift_type=="当直":
                     calendar_type="勤務"
                     shift_type="明け"
+                    
                 else:
                     if name in Night_duty_shift_dict[day]:
                         calendar_type ="勤務"
                         shift_type="当直"
-                    elif prev_calendar_type=="明け":
+                        
+                    elif prev_shift_type=="明け":
                         calendar_type="休日"
                         shift_type="日勤"
+                        
                     else :
                         calendar_type="勤務"
                         shift_type="日勤"
+                      
+            case  1:# 火
+                if prev_calendar_type=="勤務"and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    elif prev_shift_type=="明け":
+                        calendar_type="休日"
+                        shift_type="日勤"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"
+                 
             
-            case 2,3,4:  # 水木金
-                if prev_shift_type=="当直":
+            case 2:  # 水
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
                     calendar_type="勤務"
                     shift_type="明け"
+                   
                 else:
                     if name in Night_duty_shift_dict[day]:
                         calendar_type ="勤務"
                         shift_type="当直"
+                        
                     else :
                         calendar_type="勤務"
-                        shift_type="日勤"               
+                        shift_type="日勤"  
+                        
+            case 3:  # 木
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                    
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                       
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"  
+                       
+            case 4:  # 水木金
+                if prev_calendar_type=="勤務" and prev_shift_type=="当直":
+                    calendar_type="勤務"
+                    shift_type="明け"
+                 
+                else:
+                    if name in Night_duty_shift_dict[day]:
+                        calendar_type ="勤務"
+                        shift_type="当直"
+                        
+                    else :
+                        calendar_type="勤務"
+                        shift_type="日勤"  
+                                 
         # ✅ 次の日の `prev_calendar_type` を更新
         prev_calendar_type = calendar_type
         prev_shift_type=shift_type
@@ -386,7 +451,6 @@ def generate_attendance_report(request):
         formatted_date_slash = date_obj.strftime("%Y/%m/%d")
         output_data.append([staff_code, name, formatted_date_slash , calendar_type, attendance_type, shift_type, exception_start, exception_end])         
         # DataFrame に変換
-        #print(output_data)
         output_df = pd.DataFrame(output_data, columns=["個人コード", "氏名", "処理日", "カレンダー", "勤怠区分", "シフト区分", "出勤例外", "退勤例外"])
 
 # Excel に保存（上書き）
