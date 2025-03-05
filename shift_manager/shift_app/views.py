@@ -146,6 +146,29 @@ def assign_ab_team(request):
 
     return redirect("index")
 
+def add_new_mem(request):
+    """新しい技師を登録するビュー"""
+    global all_techs, catheter_team, non_catheter_team
+
+    if request.method == "POST":
+        new_tech = request.POST.get("new_tech")
+        catheter_ability = int(request.POST.get("catheter_ability", 0))  # カテーテル可否
+
+        if new_tech and new_tech not in all_techs:
+            all_techs.append(new_tech)
+            if catheter_ability:
+                catheter_team.append(new_tech)
+            else:
+                non_catheter_team.append(new_tech)
+
+            # CSV に保存
+            df_techs = pd.DataFrame({
+                "技師名": all_techs, 
+                "カテーテル可": [1 if tech in catheter_team else 0 for tech in all_techs]
+            })
+            df_techs.to_csv(TECHS_FILE, index=False, encoding="utf-8-sig")
+
+    return redirect("index")
 
     #土曜日、出勤班を特定
 def get_team_for_saturday(base_saturday, target_date):

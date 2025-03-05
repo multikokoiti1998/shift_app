@@ -107,7 +107,7 @@
                 <option value="0">不可</option>
             </select>
         </label>
-        <button type="submit">追加</button>
+        <button type="submit">当直者追加</button>
     </form>
     
     <h2>中央放射線技師リスト</h2>
@@ -126,6 +126,8 @@
             <td><a href="{% url 'delete_tech' name %}"><button>削除</button></a></td>
         </tr>
         {% endfor %}
+        <label>技師名: <input type="text" name="new_tech" required></label>
+        <button type="submit">追加</button>
     </table>
     </form>
     <form method="POST" action="{% url 'assign_ab_team' %}">
