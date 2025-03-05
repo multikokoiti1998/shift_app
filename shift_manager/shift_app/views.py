@@ -69,17 +69,6 @@ def index(request):
         'all_mem': list(zip(all_mem, all_mem_num))
     })
 
-def assign_teams(request):
-    """A/B班とカテーテル可否を登録"""
-    global a_team, b_team, catheter_team, non_catheter_team
-    if request.method == "POST":
-        catheter_team = request.POST.getlist("catheter_team")
-        non_catheter_team = [tech for tech in all_techs if tech not in catheter_team]
-        a_team = request.POST.getlist("a_team")
-        b_team = request.POST.getlist("b_team")
-        df_teams = pd.DataFrame({"技師名": a_team + b_team, "班": ["A"] * len(a_team) + ["B"] * len(b_team)})
-        df_teams.to_csv(AB_TEAMS_FILE, index=False, encoding="utf-8-sig")
-    return redirect("index")
 
 def delete_tech(request, tech_name):
     """技師を削除"""
@@ -148,25 +137,22 @@ def assign_ab_team(request):
 
 def add_new_mem(request):
     """新しい技師を登録するビュー"""
-    global all_techs, catheter_team, non_catheter_team
-
+    global all_mem,all_mem_num
     if request.method == "POST":
-        new_tech = request.POST.get("new_tech")
-        catheter_ability = int(request.POST.get("catheter_ability", 0))  # カテーテル可否
+        new_mem = request.POST.get("new_mem")
+        new_mem_num = request.POST.get("new_mem_num")
 
-        if new_tech and new_tech not in all_techs:
-            all_techs.append(new_tech)
-            if catheter_ability:
-                catheter_team.append(new_tech)
-            else:
-                non_catheter_team.append(new_tech)
 
-            # CSV に保存
+        if new_mem and new_mem not in all_mem:
+            all_mem.append(new_mem)
+            all_mem_num.append(new_mem_num)
+
+            # excelに保存
             df_techs = pd.DataFrame({
-                "技師名": all_techs, 
-                "カテーテル可": [1 if tech in catheter_team else 0 for tech in all_techs]
+                "職員番号": all_mem_num, 
+                "氏名": all_mem
             })
-            df_techs.to_csv(TECHS_FILE, index=False, encoding="utf-8-sig")
+            df_techs.to_excel(all_staff, index=False, encoding="utf-8-sig")
 
     return redirect("index")
 
@@ -346,7 +332,7 @@ def generate_attendance_report(request):
     row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
     for _, row in df_shift.iterrows()
     }
-    print(Night_duty_shift_dict)
+    #print(Night_duty_shift_dict)
 
 
     df_staff = pd.read_excel(all_staff, engine="openpyxl")

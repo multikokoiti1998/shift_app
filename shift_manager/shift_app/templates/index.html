@@ -111,7 +111,7 @@
     </form>
     
     <h2>中央放射線技師リスト</h2>
-    <form method="POST" action="{% url 'add_tech' %}">
+    <form method="POST" action="{% url 'add_new_mem' %}">
         {% csrf_token %}
     <table>
         <tr>
@@ -126,7 +126,8 @@
             <td><a href="{% url 'delete_tech' name %}"><button>削除</button></a></td>
         </tr>
         {% endfor %}
-        <label>技師名: <input type="text" name="new_tech" required></label>
+        <label>技師名: <input type="text" name="new_mem" required></label>
+        <label>職員番号: <input type="text" name="new_num" required></label>
         <button type="submit">追加</button>
     </table>
     </form>
