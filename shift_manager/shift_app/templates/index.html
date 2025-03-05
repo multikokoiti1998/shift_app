@@ -111,6 +111,8 @@
     </form>
     
     <h2>中央放射線技師リスト</h2>
+    <form method="POST" action="{% url 'add_tech' %}">
+        {% csrf_token %}
     <table>
         <tr>
             <th>技師名</th>
@@ -125,7 +127,10 @@
         </tr>
         {% endfor %}
     </table>
-    <h3>A班</h3>
+    </form>
+    <form method="POST" action="{% url 'assign_ab_team' %}">
+        {% csrf_token %}
+    <h3>A班</h3>    
     <table>
         <tr>
             <th>選択</th>
@@ -163,11 +168,10 @@
             <td colspan="3">登録された技師がいません。</td>
         </tr>
         {% endfor %}
-    </table>
-    
+     </table>
 
         <button type="submit">A/B班を保存</button>
-    </form>
+     </form>
 
 </body>
 </html>
