@@ -49,6 +49,7 @@
 <body>
 
     <h2>シフト作成月</h2>
+    <pre>{{all_mem}}</pre>
     <form method="POST" action="{% url 'create_shift_schedule' %}">
         {% csrf_token %}
         <label>シフト作成月 (ex: 2025.3): <input type="text" name="year_month" required></label>
@@ -119,7 +120,7 @@
             <th>職員番号</th>
             <th>削除</th>
         </tr>
-        {% for name, num in all_mem %}
+        {% for name, num in all_mem_df %}
         <tr>
             <td>{{ name }}</td>
             <td>{{ num }}</td>
@@ -140,7 +141,7 @@
             <th>技師名</th>
             <th>職員番号</th>
         </tr>
-        {% for name, num in all_mem %}
+        {% for name, num in all_mem_df %}
         <tr>
             <td><input type="checkbox" name="a_team" value="{{ name }}" {% if name in a_team %}checked{% endif %}></td>
             <td>{{ name }}</td>
@@ -160,7 +161,7 @@
             <th>技師名</th>
             <th>職員番号</th>
         </tr>
-        {% for name, num in all_mem %}
+        {% for name, num in all_mem_df %}
         <tr>
             <td><input type="checkbox" name="b_team" value="{{ name }}" {% if name in b_team %}checked{% endif %}></td>
             <td>{{ name }}</td>

@@ -66,7 +66,9 @@ def index(request):
         'a_team': a_team,
         'b_team': b_team,
         'shift_data': shift_data,
-        'all_mem': list(zip(all_mem, all_mem_num))
+        'all_mem':all_mem,
+        'all_mem_num':all_mem_num,
+        'all_mem_df': list(zip(all_mem, all_mem_num))  
     })
 
 
@@ -141,8 +143,10 @@ def add_new_mem(request):
     if request.method == "POST":
         new_mem = request.POST.get("new_mem")
         new_mem_num = request.POST.get("new_mem_num")
-
-
+        print(new_mem)
+        print(new_mem_num)
+        #print(all_mem)
+    '''
         if new_mem and new_mem not in all_mem:
             all_mem.append(new_mem)
             all_mem_num.append(new_mem_num)
@@ -153,6 +157,7 @@ def add_new_mem(request):
                 "氏名": all_mem
             })
             df_techs.to_excel(all_staff, index=False, encoding="utf-8-sig")
+    '''        
 
     return redirect("index")
 
