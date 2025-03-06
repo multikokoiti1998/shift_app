@@ -140,24 +140,21 @@ def assign_ab_team(request):
 def add_new_mem(request):
     """新しい技師を登録するビュー"""
     global all_mem,all_mem_num
+    load_techs() 
     if request.method == "POST":
         new_mem = request.POST.get("new_mem")
         new_mem_num = request.POST.get("new_mem_num")
-        print(new_mem)
-        print(new_mem_num)
-        #print(all_mem)
-    '''
+        
+    
         if new_mem and new_mem not in all_mem:
             all_mem.append(new_mem)
             all_mem_num.append(new_mem_num)
-
             # excelに保存
             df_techs = pd.DataFrame({
                 "職員番号": all_mem_num, 
                 "氏名": all_mem
             })
-            df_techs.to_excel(all_staff, index=False, encoding="utf-8-sig")
-    '''        
+            df_techs.to_excel(all_staff, index=False)
 
     return redirect("index")
 
@@ -242,7 +239,7 @@ def create_shift_schedule(request):
         valid_catheter_candidates = [
             m for m in available_team if m in catheter_team
             and duty_count[m] < MAX_DUTY_CATHETER
-            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 5)
+            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 4)
         ]
         valid_non_catheter_candidates = [
             m for m in available_team if m in non_catheter_team
