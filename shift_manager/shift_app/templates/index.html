@@ -117,18 +117,14 @@
         <tr>
             <th>技師名</th>
             <th>職員番号</th>
-            <th>削除</th>
         </tr>
         {% for name, num in all_mem_df %}
         <tr>
             <td>{{ name }}</td>
             <td>{{ num }}</td>
-            <td><a href="{% url 'delete_tech' name %}"><button>削除</button></a></td>
         </tr>
         {% endfor %}
-        <label>技師名: <input type="text" name="new_mem" required></label>
-        <label>職員番号: <input type="text" name="new_num" required></label>
-        <button type="submit">追加</button>
+
     </table>
     </form>
     <form method="POST" action="{% url 'assign_ab_team' %}">
