@@ -351,8 +351,6 @@ def generate_attendance_report(request):
        #曜日判定を追加
         weekday=get_weekday(day)#date型に変換
         holidays_str = {date.strftime("%Y-%m-%d") for date in holidays}
-        print(holidays_str)
-        print(holidays)
         if day in holidays_str:
            weekday=6
         match weekday:
