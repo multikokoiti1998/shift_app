@@ -338,7 +338,6 @@ def generate_attendance_report(request):
     row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
     for _, row in df_shift.iterrows()
     }
-    #print(Night_duty_shift_dict)
 
 
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
@@ -351,8 +350,10 @@ def generate_attendance_report(request):
        for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
         weekday=get_weekday(day)#date型に変換
+        holidays_str = {date.strftime("%Y-%m-%d") for date in holidays}
+        print(holidays_str)
         print(holidays)
-        if day in holidays:
+        if day in holidays_str:
            weekday=6
         match weekday:
             case 5:  # 土曜日
