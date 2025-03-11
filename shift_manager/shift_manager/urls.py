@@ -22,9 +22,9 @@ from shift_app import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.index, name='index'),
-    path('assign/', views.assign_teams, name='assign_teams'),
     path('schedule/', views.create_shift_schedule, name='create_shift_schedule'),
     path("add_tech/", views.add_tech, name="add_tech"),
+    path("add_new_mem/", views.add_new_mem, name="add_new_mem"),
     path("delete_tech/<str:tech_name>/", views.delete_tech, name="delete_tech"),
     path("assign_ab_team/", views.assign_ab_team, name="assign_ab_team"),
     path('generate_attendance_report/', views.generate_attendance_report, name='generate_attendance_report'),

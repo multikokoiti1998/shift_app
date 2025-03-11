@@ -5,6 +5,7 @@ import os
 import calendar
 from datetime import datetime, timedelta
 import random
+import csv
 import openpyxl
 
 TECHS_FILE = 'static/techs.csv'
@@ -12,7 +13,7 @@ AB_TEAMS_FILE = 'static/ab_teams.csv'
 HOLIDAYS_FILE = 'static/holidays.csv'
 SHIFT_FILE = 'static/shift_schedule.csv'
 attendance_file='static/attendance_data.csv'
-all_staff='static/staff_all.xlsx'
+all_staff='static/all_mem.xlsx'
 
 
 MAX_DUTY_CATHETER = 4
@@ -21,8 +22,8 @@ MAX_DUTY_SUNDAY = 1
 
 def load_techs():
     """技師データをロード"""
-    global all_techs, catheter_team, non_catheter_team, a_team, b_team, duty_count, last_duty,duty_sunday
-    all_techs, catheter_team, non_catheter_team, a_team, b_team = [], [], [], [], []
+    global all_techs, catheter_team, non_catheter_team, a_team, b_team, duty_count, last_duty,duty_sunday,all_mem,all_mem_num
+    all_techs, catheter_team, non_catheter_team, a_team, b_team,all_mem,all_mem_num  = [], [], [], [], [],[],[]
     duty_count = {}
     last_duty = {}
     duty_sunday={}
@@ -39,6 +40,12 @@ def load_techs():
         a_team = df[df['班'] == 'A']['技師名'].tolist()
         b_team = df[df['班'] == 'B']['技師名'].tolist()
 
+    if os.path.exists(all_staff):
+        df = pd.read_excel(all_staff, engine="openpyxl")
+        all_mem = df['氏名'].tolist()
+        all_mem_num = df['職員番号'].tolist()
+       
+    
     duty_count = {name: 0 for name in all_techs}
     last_duty = {name: None for name in all_techs}
     duty_sunday={name: 0 for name in all_techs}
@@ -59,20 +66,12 @@ def index(request):
         'non_catheter_team': non_catheter_team,
         'a_team': a_team,
         'b_team': b_team,
-        'shift_data': shift_data
+        'shift_data': shift_data,
+        'all_mem':all_mem,
+        'all_mem_num':all_mem_num,
+        'all_mem_df': list(zip(all_mem, all_mem_num))  
     })
 
-def assign_teams(request):
-    """A/B班とカテーテル可否を登録"""
-    global a_team, b_team, catheter_team, non_catheter_team
-    if request.method == "POST":
-        catheter_team = request.POST.getlist("catheter_team")
-        non_catheter_team = [tech for tech in all_techs if tech not in catheter_team]
-        a_team = request.POST.getlist("a_team")
-        b_team = request.POST.getlist("b_team")
-        df_teams = pd.DataFrame({"技師名": a_team + b_team, "班": ["A"] * len(a_team) + ["B"] * len(b_team)})
-        df_teams.to_csv(AB_TEAMS_FILE, index=False, encoding="utf-8-sig")
-    return redirect("index")
 
 def delete_tech(request, tech_name):
     """技師を削除"""
@@ -109,23 +108,56 @@ def add_tech(request):
             df_techs.to_csv(TECHS_FILE, index=False, encoding="utf-8-sig")
 
     return redirect("index")
+
 def assign_ab_team(request):
     """A/B班のメンバーを登録"""
-    global a_team, b_team
 
     if request.method == "POST":
-        a_team = request.POST.getlist("a_team")
+        a_team = request.POST.getlist("a_team")  # ✅ チェックボックスのリスト取得
         b_team = request.POST.getlist("b_team")
 
-        # CSVに保存
+        # ✅ A/B班のデータが空ならエラーメッセージを表示してリダイレクト
+        if not a_team and not b_team:
+            return redirect("index")
+
+        # ✅ A/B班のデータをDataFrameに変換
         df_teams = pd.DataFrame({
             "技師名": a_team + b_team,
             "班": ["A"] * len(a_team) + ["B"] * len(b_team)
         })
+
+        # ✅ 保存ディレクトリがない場合は作成
+        os.makedirs(os.path.dirname(AB_TEAMS_FILE), exist_ok=True)
+
+        # ✅ CSVに保存（上書きせず、既存データとマージ）
+        if os.path.exists(AB_TEAMS_FILE):
+            existing_df = pd.read_csv(AB_TEAMS_FILE, encoding="utf-8-sig")
+            df_teams = pd.concat([existing_df, df_teams]).drop_duplicates().reset_index(drop=True)
+
         df_teams.to_csv(AB_TEAMS_FILE, index=False, encoding="utf-8-sig")
 
     return redirect("index")
 
+def add_new_mem(request):
+    """新しい技師を登録するビュー"""
+    global all_mem,all_mem_num
+    load_techs() 
+    if request.method == "POST":
+        new_mem = request.POST.get("new_mem")
+        new_mem_num = request.POST.get("new_mem_num")
+        
+    
+        if new_mem and new_mem not in all_mem:
+            all_mem.append(new_mem)
+            all_mem_num.append(new_mem_num)
+            # excelに保存
+            df_techs = pd.DataFrame({
+                "職員番号": all_mem_num, 
+                "氏名": all_mem
+            })
+            df_techs.to_excel(all_staff, index=False)
+
+    return redirect("index")
 
     #土曜日、出勤班を特定
 def get_team_for_saturday(base_saturday, target_date):
@@ -174,7 +206,11 @@ def create_shift_schedule(request):
                     holidays.add(datetime.strptime(cleaned_date , "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
-        #print(holidays)
+        with open(HOLIDAYS_FILE, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["date"])  # ヘッダー
+            for date in holidays:
+                writer.writerow([date])  
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
@@ -208,7 +244,7 @@ def create_shift_schedule(request):
         valid_catheter_candidates = [
             m for m in available_team if m in catheter_team
             and duty_count[m] < MAX_DUTY_CATHETER
-            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 5)
+            and (last_duty.get(m) is None or (date - last_duty[m]).days >= 4)
         ]
         valid_non_catheter_candidates = [
             m for m in available_team if m in non_catheter_team
@@ -224,7 +260,6 @@ def create_shift_schedule(request):
               # 日勤者の選定（祝日 or 日曜日）
         duty_day_catheter = ""
         if date.date() in holidays or weekday == 6:
-            print(holidays)
             valid_day_candidates = [
                 m for m in valid_non_catheter_candidates 
                 if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
@@ -263,8 +298,8 @@ def load_holidays():
     """祝日データを読み込む"""
     if os.path.exists(HOLIDAYS_FILE):
         df_holidays = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
-        df_holidays['日付'] = pd.to_datetime(df_holidays['日付'])
-        return set(df_holidays['日付'].dt.date)
+        df_holidays['date'] = pd.to_datetime(df_holidays['date'])
+        return set(df_holidays['date'].dt.date)
     return set()
 
 def generate_attendance_report(request):
@@ -303,7 +338,6 @@ def generate_attendance_report(request):
     row["日付"]: [ row["日勤"] if row["日勤"] is not None else "NaN"]
     for _, row in df_shift.iterrows()
     }
-    print(Night_duty_shift_dict)
 
 
     df_staff = pd.read_excel(all_staff, engine="openpyxl")
@@ -316,7 +350,8 @@ def generate_attendance_report(request):
        for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
         weekday=get_weekday(day)#date型に変換
-        if day in holidays:
+        holidays_str = {date.strftime("%Y-%m-%d") for date in holidays}
+        if day in holidays_str:
            weekday=6
         match weekday:
             case 5:  # 土曜日
