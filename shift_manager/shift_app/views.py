@@ -5,6 +5,7 @@ import os
 import calendar
 from datetime import datetime, timedelta
 import random
+import csv
 import openpyxl
 
 TECHS_FILE = 'static/techs.csv'
@@ -205,7 +206,11 @@ def create_shift_schedule(request):
                     holidays.add(datetime.strptime(cleaned_date , "%Y-%m-%d").date()) # `date` 型に変換
                 except ValueError:
                     print(f"無効な日付フォーマット: {date_str}")  # エラーログ
-        #print(holidays)
+        with open(HOLIDAYS_FILE, "w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["date"])  # ヘッダー
+            for date in holidays:
+                writer.writerow([date])  
         load_techs()
         base_saturday = "2025-01-04"
         first_day = datetime(year, month, 1)
@@ -255,7 +260,6 @@ def create_shift_schedule(request):
               # 日勤者の選定（祝日 or 日曜日）
         duty_day_catheter = ""
         if date.date() in holidays or weekday == 6:
-            print(holidays)
             valid_day_candidates = [
                 m for m in valid_non_catheter_candidates 
                 if duty_sunday.get(m, 0) < MAX_DUTY_SUNDAY  # キーエラー防止
@@ -294,8 +298,8 @@ def load_holidays():
     """祝日データを読み込む"""
     if os.path.exists(HOLIDAYS_FILE):
         df_holidays = pd.read_csv(HOLIDAYS_FILE, encoding='utf-8-sig')
-        df_holidays['日付'] = pd.to_datetime(df_holidays['日付'])
-        return set(df_holidays['日付'].dt.date)
+        df_holidays['date'] = pd.to_datetime(df_holidays['date'])
+        return set(df_holidays['date'].dt.date)
     return set()
 
 def generate_attendance_report(request):
@@ -347,6 +351,7 @@ def generate_attendance_report(request):
        for day in formatted_dates:#毎日一日ずつdayはstr
        #曜日判定を追加
         weekday=get_weekday(day)#date型に変換
+        print(holidays)
         if day in holidays:
            weekday=6
         match weekday:
